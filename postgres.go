@@ -21,7 +21,6 @@ func openPostgres(ctx context.Context, cfg PostgresConfig, log Logger) (*gorm.DB
 	if cfg.LogLevel != "" && cfg.LogLevel != "silent" {
 		gormCfg.Logger = logger.Default.LogMode(logger.LogLevel(zapGormLevel(cfg.LogLevel)))
 	}
-	
 	db, err := gorm.Open(postgres.Open(cfg.DSN), gormCfg)
 	if err != nil {
 		return nil, fmt.Errorf("dbkit postgres: open: %w", err)
