@@ -1,103 +1,143 @@
 package dbkit
 
 import (
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"context"
+	"log/slog"
+	"os"
+	"time"
 )
 
-// Logger 可插拔日志接口，业务方可注入自定义实现。
+// Logger 可插拔结构化日志接口，不绑定任何第三方日志库。
+// 消息体仅承载事件描述；上下文一律通过 Field 键值对传递。
 type Logger interface {
 	Debug(msg string, fields ...Field)
 	Info(msg string, fields ...Field)
 	Warn(msg string, fields ...Field)
 	Error(msg string, fields ...Field)
+
+	Debugw(ctx context.Context, msg string, fields ...Field)
+	Infow(ctx context.Context, msg string, fields ...Field)
+	Warnw(ctx context.Context, msg string, fields ...Field)
+	Errorw(ctx context.Context, msg string, fields ...Field)
 }
 
-// Field 键值对日志字段。
+// Field 结构化日志字段（Key-Value）。
 type Field struct {
 	Key   string
 	Value any
 }
 
-func String(key, val string) Field  { return Field{Key: key, Value: val} }
-func Int(key string, val int) Field { return Field{Key: key, Value: val} }
-func Err(key string, err error) Field {
-	return Field{Key: key, Value: err}
+func String(key, val string) Field      { return Field{Key: key, Value: val} }
+func Int(key string, val int) Field     { return Field{Key: key, Value: val} }
+func Int64(key string, val int64) Field { return Field{Key: key, Value: val} }
+func Bool(key string, val bool) Field   { return Field{Key: key, Value: val} }
+func Duration(key string, d time.Duration) Field {
+	return Field{Key: key, Value: d}
+}
+func Err(key string, err error) Field { return Field{Key: key, Value: err} }
+func Any(key string, val any) Field   { return Field{Key: key, Value: val} }
+
+// SlogLogger 基于标准库 slog 的默认实现（Go 1.21+）。
+type SlogLogger struct {
+	l *slog.Logger
 }
 
-// ZapLogger 基于 zap 的默认实现。
-type ZapLogger struct {
-	z *zap.Logger
+// NewSlogLogger 使用 JSON 输出到 stderr 创建 SlogLogger（适合生产环境）。
+func NewSlogLogger() *SlogLogger {
+	return NewSlogLoggerFrom(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
 }
 
-// NewZapLogger 使用生产环境默认配置创建 ZapLogger。
-func NewZapLogger() (*ZapLogger, error) {
-	z, err := zap.NewProduction()
-	if err != nil {
-		return nil, err
+// NewSlogLoggerText 使用文本格式输出到 stderr（适合本地开发）。
+func NewSlogLoggerText() *SlogLogger {
+	return NewSlogLoggerFrom(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})))
+}
+
+// NewSlogLoggerFrom 包装已有 *slog.Logger。
+func NewSlogLoggerFrom(l *slog.Logger) *SlogLogger {
+	if l == nil {
+		l = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
-	return &ZapLogger{z: z}, nil
+	return &SlogLogger{l: l}
 }
 
-// NewZapLoggerFrom 包装已有 *zap.Logger。
-func NewZapLoggerFrom(z *zap.Logger) *ZapLogger {
-	if z == nil {
-		z = zap.NewNop()
-	}
-	return &ZapLogger{z: z}
+func (l *SlogLogger) Debug(msg string, fields ...Field) {
+	l.log(context.Background(), slog.LevelDebug, msg, fields)
+}
+func (l *SlogLogger) Info(msg string, fields ...Field) {
+	l.log(context.Background(), slog.LevelInfo, msg, fields)
+}
+func (l *SlogLogger) Warn(msg string, fields ...Field) {
+	l.log(context.Background(), slog.LevelWarn, msg, fields)
+}
+func (l *SlogLogger) Error(msg string, fields ...Field) {
+	l.log(context.Background(), slog.LevelError, msg, fields)
 }
 
-func (l *ZapLogger) Debug(msg string, fields ...Field) { l.z.Debug(msg, toZap(fields)...) }
-func (l *ZapLogger) Info(msg string, fields ...Field)  { l.z.Info(msg, toZap(fields)...) }
-func (l *ZapLogger) Warn(msg string, fields ...Field)  { l.z.Warn(msg, toZap(fields)...) }
-func (l *ZapLogger) Error(msg string, fields ...Field) { l.z.Error(msg, toZap(fields)...) }
+func (l *SlogLogger) Debugw(ctx context.Context, msg string, fields ...Field) {
+	l.log(ctx, slog.LevelDebug, msg, fields)
+}
+func (l *SlogLogger) Infow(ctx context.Context, msg string, fields ...Field) {
+	l.log(ctx, slog.LevelInfo, msg, fields)
+}
+func (l *SlogLogger) Warnw(ctx context.Context, msg string, fields ...Field) {
+	l.log(ctx, slog.LevelWarn, msg, fields)
+}
+func (l *SlogLogger) Errorw(ctx context.Context, msg string, fields ...Field) {
+	l.log(ctx, slog.LevelError, msg, fields)
+}
 
-// Sync 刷新缓冲，Close 前调用。
-func (l *ZapLogger) Sync() error { return l.z.Sync() }
+func (l *SlogLogger) log(ctx context.Context, level slog.Level, msg string, fields []Field) {
+	attrs := fieldsToAttrs(append(contextFields(ctx), fields...))
+	l.l.LogAttrs(ctx, level, msg, attrs...)
+}
 
-func toZap(fields []Field) []zap.Field {
-	out := make([]zap.Field, 0, len(fields))
+// DefaultLogger 返回库内全局默认 Logger（slog JSON → stderr）。
+func DefaultLogger() Logger {
+	return defaultLogger
+}
+
+var defaultLogger Logger = NewSlogLogger()
+
+func fieldsToAttrs(fields []Field) []slog.Attr {
+	attrs := make([]slog.Attr, 0, len(fields))
 	for _, f := range fields {
-		switch v := f.Value.(type) {
-		case string:
-			out = append(out, zap.String(f.Key, v))
-		case int:
-			out = append(out, zap.Int(f.Key, v))
-		case int64:
-			out = append(out, zap.Int64(f.Key, v))
-		case error:
-			out = append(out, zap.NamedError(f.Key, v))
-		default:
-			out = append(out, zap.Any(f.Key, v))
-		}
+		attrs = append(attrs, fieldToAttr(f))
 	}
-	return out
+	return attrs
 }
 
-// nopLogger 未注入 logger 时的空实现。
-type nopLogger struct{}
-
-func (nopLogger) Debug(string, ...Field) {}
-func (nopLogger) Info(string, ...Field)  {}
-func (nopLogger) Warn(string, ...Field)  {}
-func (nopLogger) Error(string, ...Field) {}
-
-// 编译期断言
-var _ Logger = (*ZapLogger)(nil)
-var _ Logger = nopLogger{}
-
-// zapGormLevel 将配置字符串映射为 zap level（供 GORM 日志适配，此处仅保留扩展点）。
-func zapGormLevel(level string) zapcore.Level {
-	switch level {
-	case "silent":
-		return zapcore.FatalLevel + 1
-	case "error":
-		return zapcore.ErrorLevel
-	case "warn":
-		return zapcore.WarnLevel
-	case "debug":
-		return zapcore.DebugLevel
+func fieldToAttr(f Field) slog.Attr {
+	switch v := f.Value.(type) {
+	case string:
+		return slog.String(f.Key, v)
+	case int:
+		return slog.Int(f.Key, v)
+	case int64:
+		return slog.Int64(f.Key, v)
+	case bool:
+		return slog.Bool(f.Key, v)
+	case time.Duration:
+		return slog.Duration(f.Key, v)
+	case error:
+		return slog.Any(f.Key, v)
 	default:
-		return zapcore.InfoLevel
+		return slog.Any(f.Key, v)
 	}
 }
+
+// ContextFields 从 context 提取可观测性字段（供适配器与 *w 方法复用）。
+func ContextFields(ctx context.Context) []Field {
+	if ctx == nil {
+		return nil
+	}
+	// 预留：对接 OpenTelemetry trace/span 时在此追加字段
+	return nil
+}
+
+func contextFields(ctx context.Context) []Field { return ContextFields(ctx) }
+
+var _ Logger = (*SlogLogger)(nil)

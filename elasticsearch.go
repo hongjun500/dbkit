@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/elastic/go-elasticsearch/v9"
 )
@@ -22,6 +23,13 @@ func openElasticsearch(ctx context.Context, cfg ElasticsearchConfig, log Logger)
 		return nil, fmt.Errorf("dbkit elasticsearch: addresses or cloud_id is required when enabled")
 	}
 
+	addr := strings.Join(cfg.Addresses, ",")
+	logConnectStart(ctx, log, "elasticsearch",
+		String(logKeyAddr, addr),
+		Bool("cloud_id_set", cfg.CloudID != ""),
+		dialField(cfg.Dial),
+	)
+
 	esCfg := elasticsearch.Config{
 		Addresses: cfg.Addresses,
 		Username:  cfg.Username,
@@ -35,6 +43,7 @@ func openElasticsearch(ctx context.Context, cfg ElasticsearchConfig, log Logger)
 
 	es, err := elasticsearch.NewClient(esCfg)
 	if err != nil {
+		logConnectFail(ctx, log, "elasticsearch", "new_client", err, String(logKeyAddr, addr))
 		return nil, fmt.Errorf("dbkit elasticsearch: new client: %w", err)
 	}
 
@@ -42,15 +51,25 @@ func openElasticsearch(ctx context.Context, cfg ElasticsearchConfig, log Logger)
 	defer cancel()
 	res, err := es.Ping(es.Ping.WithContext(pingCtx))
 	if err != nil {
+		logConnectFail(ctx, log, "elasticsearch", "ping", err, String(logKeyAddr, addr))
 		return nil, fmt.Errorf("dbkit elasticsearch: ping: %w", err)
 	}
 	defer res.Body.Close()
 	if res.IsError() {
 		body, _ := io.ReadAll(res.Body)
+		pingErr := fmt.Errorf("status %s: %s", res.Status(), string(body))
+		logConnectFail(ctx, log, "elasticsearch", "ping", pingErr,
+			String(logKeyAddr, addr),
+			Int("http_status", res.StatusCode),
+		)
 		return nil, fmt.Errorf("dbkit elasticsearch: ping status %s: %s", res.Status(), string(body))
 	}
 
-	log.Info("elasticsearch connected", String("component", "elasticsearch"))
+	logConnectOK(ctx, log, "elasticsearch",
+		String(logKeyAddr, addr),
+		Int("http_status", res.StatusCode),
+		dialField(cfg.Dial),
+	)
 	return &ESClient{es: es}, nil
 }
 

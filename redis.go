@@ -19,6 +19,14 @@ func openRedis(ctx context.Context, cfg RedisConfig, log Logger) (*RedisClient, 
 		return nil, fmt.Errorf("dbkit redis: addr is required when enabled")
 	}
 
+	logConnectStart(ctx, log, "redis",
+		String(logKeyAddr, cfg.Addr),
+		Int("db", cfg.DB),
+		Int(logKeyPoolSize, cfg.PoolSize),
+		Int(logKeyMinIdle, cfg.MinIdleConns),
+		dialField(cfg.Dial),
+	)
+
 	rdb := redis.NewClient(&redis.Options{
 		Addr:         cfg.Addr,
 		Username:     cfg.Username,
@@ -35,10 +43,25 @@ func openRedis(ctx context.Context, cfg RedisConfig, log Logger) (*RedisClient, 
 	defer cancel()
 	if err := rdb.Ping(pingCtx).Err(); err != nil {
 		_ = rdb.Close()
+		logConnectFail(ctx, log, "redis", "ping", err,
+			String(logKeyAddr, cfg.Addr),
+			dialField(cfg.Dial),
+		)
 		return nil, fmt.Errorf("dbkit redis: ping: %w", err)
 	}
 
-	log.Info("redis connected", String("component", "redis"), String("addr", cfg.Addr))
+	st := rdb.PoolStats()
+	logConnectOK(ctx, log, "redis",
+		String(logKeyAddr, cfg.Addr),
+		Int("db", cfg.DB),
+		Int(logKeyPoolSize, cfg.PoolSize),
+		Int(logKeyMinIdle, cfg.MinIdleConns),
+		Int("pool_hits", int(st.Hits)),
+		Int("pool_misses", int(st.Misses)),
+		Int("pool_timeouts", int(st.Timeouts)),
+		Int("pool_total_conns", int(st.TotalConns)),
+		Int("pool_idle_conns", int(st.IdleConns)),
+	)
 	return &RedisClient{rdb: rdb}, nil
 }
 

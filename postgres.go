@@ -15,33 +15,47 @@ func openPostgres(ctx context.Context, cfg PostgresConfig, log Logger) (*gorm.DB
 		return nil, fmt.Errorf("dbkit postgres: dsn is required when enabled")
 	}
 
+	pool := cfg.Pool.withDefaults()
+	logConnectStart(ctx, log, "postgres",
+		String(logKeyDSN, redactDSN(cfg.DSN)),
+		dialField(cfg.Dial),
+	)
+
 	gormCfg := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	}
 	if cfg.LogLevel != "" && cfg.LogLevel != "silent" {
-		gormCfg.Logger = logger.Default.LogMode(logger.LogLevel(zapGormLevel(cfg.LogLevel)))
+		gormCfg.Logger = logger.Default.LogMode(gormLogMode(cfg.LogLevel))
 	}
 	db, err := gorm.Open(postgres.Open(cfg.DSN), gormCfg)
 	if err != nil {
+		logConnectFail(ctx, log, "postgres", "open", err, String(logKeyDSN, redactDSN(cfg.DSN)))
 		return nil, fmt.Errorf("dbkit postgres: open: %w", err)
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
+		logConnectFail(ctx, log, "postgres", "get_sql_db", err)
 		return nil, fmt.Errorf("dbkit postgres: get sql.DB: %w", err)
 	}
-	applyPool(sqlDB, cfg.Pool.withDefaults())
+	applyPool(sqlDB, pool)
 
 	if cfg.Dial > 0 {
 		pingCtx, cancel := context.WithTimeout(ctx, cfg.Dial)
 		defer cancel()
 		if err := sqlDB.PingContext(pingCtx); err != nil {
 			_ = sqlDB.Close()
+			logConnectFail(ctx, log, "postgres", "ping", err, dialField(cfg.Dial))
 			return nil, fmt.Errorf("dbkit postgres: ping: %w", err)
 		}
 	}
 
-	log.Info("postgres connected", String("component", "postgres"))
+	fields := append([]Field{
+		String(logKeyDSN, redactDSN(cfg.DSN)),
+		dialField(cfg.Dial),
+	}, sqlPoolFields(pool)...)
+	fields = append(fields, statsPoolFields(sqlDB)...)
+	logConnectOK(ctx, log, "postgres", fields...)
 	return db, nil
 }
 

@@ -54,7 +54,7 @@ func WithLogger(l Logger) RegistryOption {
 
 // NewRegistry 根据配置创建注册表；未启用的组件不会被初始化。
 func NewRegistry(cfg Config, opts ...RegistryOption) *Registry {
-	r := &Registry{cfg: cfg, logger: nopLogger{}}
+	r := &Registry{cfg: cfg, logger: DefaultLogger()}
 	for _, opt := range opts {
 		opt(r)
 	}

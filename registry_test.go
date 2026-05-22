@@ -156,9 +156,9 @@ func TestRegistry_SystemC_OnlyPGAndES(t *testing.T) {
 }
 
 func TestRegistry_CustomLogger(t *testing.T) {
-	log := NewZapLoggerFrom(nil)
+	log := NewSlogLogger()
 	reg := NewRegistry(Config{}, WithLogger(log))
-	if reg.logger == nil {
-		t.Fatal("logger should be set")
+	if reg.logger != log {
+		t.Fatal("custom logger should be injected")
 	}
 }

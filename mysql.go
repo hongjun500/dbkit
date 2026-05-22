@@ -17,6 +17,12 @@ func openMySQL(ctx context.Context, cfg MySQLConfig, log Logger) (*gorm.DB, erro
 		return nil, fmt.Errorf("dbkit mysql: dsn is required when enabled")
 	}
 
+	pool := cfg.Pool.withDefaults()
+	logConnectStart(ctx, log, "mysql",
+		String(logKeyDSN, redactDSN(cfg.DSN)),
+		dialField(cfg.Dial),
+	)
+
 	gormCfg := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	}
@@ -26,25 +32,33 @@ func openMySQL(ctx context.Context, cfg MySQLConfig, log Logger) (*gorm.DB, erro
 
 	db, err := gorm.Open(mysql.Open(cfg.DSN), gormCfg)
 	if err != nil {
+		logConnectFail(ctx, log, "mysql", "open", err, String(logKeyDSN, redactDSN(cfg.DSN)))
 		return nil, fmt.Errorf("dbkit mysql: open: %w", err)
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
+		logConnectFail(ctx, log, "mysql", "get_sql_db", err)
 		return nil, fmt.Errorf("dbkit mysql: get sql.DB: %w", err)
 	}
-	applyPool(sqlDB, cfg.Pool.withDefaults())
+	applyPool(sqlDB, pool)
 
 	if cfg.Dial > 0 {
 		pingCtx, cancel := context.WithTimeout(ctx, cfg.Dial)
 		defer cancel()
 		if err := sqlDB.PingContext(pingCtx); err != nil {
 			_ = sqlDB.Close()
+			logConnectFail(ctx, log, "mysql", "ping", err, dialField(cfg.Dial))
 			return nil, fmt.Errorf("dbkit mysql: ping: %w", err)
 		}
 	}
 
-	log.Info("mysql connected", String("component", "mysql"))
+	fields := append([]Field{
+		String(logKeyDSN, redactDSN(cfg.DSN)),
+		dialField(cfg.Dial),
+	}, sqlPoolFields(pool)...)
+	fields = append(fields, statsPoolFields(sqlDB)...)
+	logConnectOK(ctx, log, "mysql", fields...)
 	return db, nil
 }
 
@@ -83,6 +97,8 @@ func gormLogMode(level string) logger.LogLevel {
 	case "warn":
 		return logger.Warn
 	case "info":
+		return logger.Info
+	case "debug":
 		return logger.Info
 	default:
 		return logger.Silent

@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/hongjun500/dbkit"
@@ -17,18 +16,19 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logger, err := dbkit.NewZapLogger()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "logger: %v\n", err)
-		os.Exit(1)
-	}
-	defer func() { _ = logger.Sync() }()
+	// 默认：标准库 slog JSON 结构化日志；也可 dbkit.NewSlogLoggerText() 或注入自定义实现
+	log := dbkit.NewSlogLoggerText()
 
 	fmt.Println("=== 系统 A：MySQL + Redis ===")
-	runSystemA(ctx, logger)
+	runSystemA(ctx, log)
 
 	fmt.Println("\n=== 系统 C：PostgreSQL + Elasticsearch ===")
-	runSystemC(ctx, logger)
+	runSystemC(ctx, log)
+
+	// 若使用 zap，可改为：
+	//   import "github.com/hongjun500/dbkit/logzap"
+	//   zlog, _ := logzap.New()
+	//   defer func() { _ = zlog.Sync() }()
 }
 
 func runSystemA(ctx context.Context, log dbkit.Logger) {
@@ -55,7 +55,7 @@ func runSystemA(ctx context.Context, log dbkit.Logger) {
 			fmt.Println("  closed gracefully")
 		}
 	}()
-	
+
 	tryDisabled(reg, "postgres", func() error {
 		_, err := reg.Postgres(ctx)
 		return err
@@ -85,8 +85,8 @@ func runSystemC(ctx context.Context, log dbkit.Logger) {
 		Elasticsearch: dbkit.ElasticsearchConfig{
 			Enabled:   true,
 			Addresses: []string{"http://127.0.0.1:9200"},
-			Username: "123",
-			Password: "123",
+			Username:  "123",
+			Password:  "123",
 			Dial:      2 * time.Second,
 		},
 	}, dbkit.WithLogger(log))
