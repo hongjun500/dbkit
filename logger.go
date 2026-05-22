@@ -95,6 +95,8 @@ func zapGormLevel(level string) zapcore.Level {
 		return zapcore.ErrorLevel
 	case "warn":
 		return zapcore.WarnLevel
+	case "debug":
+		return zapcore.DebugLevel
 	default:
 		return zapcore.InfoLevel
 	}

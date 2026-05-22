@@ -55,7 +55,7 @@ func runSystemA(ctx context.Context, log dbkit.Logger) {
 			fmt.Println("  closed gracefully")
 		}
 	}()
-
+	
 	tryDisabled(reg, "postgres", func() error {
 		_, err := reg.Postgres(ctx)
 		return err
