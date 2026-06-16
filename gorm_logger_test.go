@@ -19,29 +19,16 @@ type captureLogger struct {
 	entries []logEntry
 }
 
-func (l *captureLogger) Debug(msg string, fields ...Field) {
+func (l *captureLogger) Debug(_ context.Context, msg string, fields ...Field) {
 	l.entries = append(l.entries, logEntry{level: "debug", msg: msg, fields: fields})
 }
-func (l *captureLogger) Info(msg string, fields ...Field) {
+func (l *captureLogger) Info(_ context.Context, msg string, fields ...Field) {
 	l.entries = append(l.entries, logEntry{level: "info", msg: msg, fields: fields})
 }
-func (l *captureLogger) Warn(msg string, fields ...Field) {
+func (l *captureLogger) Warn(_ context.Context, msg string, fields ...Field) {
 	l.entries = append(l.entries, logEntry{level: "warn", msg: msg, fields: fields})
 }
-func (l *captureLogger) Error(msg string, fields ...Field) {
-	l.entries = append(l.entries, logEntry{level: "error", msg: msg, fields: fields})
-}
-
-func (l *captureLogger) Debugw(_ context.Context, msg string, fields ...Field) {
-	l.entries = append(l.entries, logEntry{level: "debug", msg: msg, fields: fields})
-}
-func (l *captureLogger) Infow(_ context.Context, msg string, fields ...Field) {
-	l.entries = append(l.entries, logEntry{level: "info", msg: msg, fields: fields})
-}
-func (l *captureLogger) Warnw(_ context.Context, msg string, fields ...Field) {
-	l.entries = append(l.entries, logEntry{level: "warn", msg: msg, fields: fields})
-}
-func (l *captureLogger) Errorw(_ context.Context, msg string, fields ...Field) {
+func (l *captureLogger) Error(_ context.Context, msg string, fields ...Field) {
 	l.entries = append(l.entries, logEntry{level: "error", msg: msg, fields: fields})
 }
 

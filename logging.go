@@ -30,7 +30,7 @@ func logConnectStart(ctx context.Context, log Logger, dbType string, fields ...F
 		String(logKeyComponent, dbType),
 		String(logKeyEvent, "connect_start"),
 	}
-	log.Infow(ctx, "opening database connection", append(base, fields...)...)
+	log.Info(ctx, "opening database connection", append(base, fields...)...)
 }
 
 func logConnectOK(ctx context.Context, log Logger, dbType string, fields ...Field) {
@@ -39,7 +39,7 @@ func logConnectOK(ctx context.Context, log Logger, dbType string, fields ...Fiel
 		String(logKeyComponent, dbType),
 		String(logKeyEvent, "connect_ok"),
 	}
-	log.Infow(ctx, "database connected", append(base, fields...)...)
+	log.Info(ctx, "database connected", append(base, fields...)...)
 }
 
 func logConnectFail(ctx context.Context, log Logger, dbType, stage string, err error, fields ...Field) {
@@ -50,7 +50,7 @@ func logConnectFail(ctx context.Context, log Logger, dbType, stage string, err e
 		String("stage", stage),
 		Err(logKeyError, err),
 	}
-	log.Errorw(ctx, "database connection failed", append(base, fields...)...)
+	log.Error(ctx, "database connection failed", append(base, fields...)...)
 }
 
 func sqlPoolFields(pool PoolConfig) []Field {

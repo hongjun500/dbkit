@@ -43,21 +43,21 @@ func (l *dbkitGORMLogger) Info(ctx context.Context, msg string, data ...interfac
 	if l.level < gormlogger.Info {
 		return
 	}
-	l.base.Infow(ctx, "gorm info", l.gormBaseFields("gorm_info", msg, data...)...)
+	l.base.Info(ctx, "gorm info", l.gormBaseFields("gorm_info", msg, data...)...)
 }
 
 func (l *dbkitGORMLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
 	if l.level < gormlogger.Warn {
 		return
 	}
-	l.base.Warnw(ctx, "gorm warn", l.gormBaseFields("gorm_warn", msg, data...)...)
+	l.base.Warn(ctx, "gorm warn", l.gormBaseFields("gorm_warn", msg, data...)...)
 }
 
 func (l *dbkitGORMLogger) Error(ctx context.Context, msg string, data ...interface{}) {
 	if l.level < gormlogger.Error {
 		return
 	}
-	l.base.Errorw(ctx, "gorm error", l.gormBaseFields("gorm_error", msg, data...)...)
+	l.base.Error(ctx, "gorm error", l.gormBaseFields("gorm_error", msg, data...)...)
 }
 
 func (l *dbkitGORMLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
@@ -70,7 +70,7 @@ func (l *dbkitGORMLogger) Trace(ctx context.Context, begin time.Time, fc func() 
 		sql, rows := fc()
 		fields := l.gormTraceFields("gorm_sql_error", elapsed, sql, rows)
 		fields = append(fields, Err(logKeyError, err))
-		l.base.Errorw(ctx, "gorm sql error", fields...)
+		l.base.Error(ctx, "gorm sql error", fields...)
 		return
 	}
 
@@ -78,13 +78,13 @@ func (l *dbkitGORMLogger) Trace(ctx context.Context, begin time.Time, fc func() 
 		sql, rows := fc()
 		fields := l.gormTraceFields("gorm_slow_sql", elapsed, sql, rows)
 		fields = append(fields, Duration("slow_threshold", l.slowThreshold))
-		l.base.Warnw(ctx, "gorm slow sql", fields...)
+		l.base.Warn(ctx, "gorm slow sql", fields...)
 		return
 	}
 
 	if l.level >= gormlogger.Info {
 		sql, rows := fc()
-		l.base.Infow(ctx, "gorm sql", l.gormTraceFields("gorm_sql", elapsed, sql, rows)...)
+		l.base.Info(ctx, "gorm sql", l.gormTraceFields("gorm_sql", elapsed, sql, rows)...)
 	}
 }
 

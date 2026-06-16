@@ -1,5 +1,5 @@
-// Package dbkit 提供基于 go.uber.org/zap 的 dbkit.Logger 适配器（可选依赖）。
-package dbkit
+// Package logzap 提供基于 go.uber.org/zap 的 dbkit.Logger 适配器（可选依赖）。
+package logzap
 
 import (
 	"context"
@@ -31,29 +31,16 @@ func From(z *zap.Logger) *Logger {
 	return &Logger{z: z}
 }
 
-func (l *Logger) Debug(msg string, fields ...dbkit.Field) {
-	l.z.Debug(msg, toZap(append(dbkit.ContextFields(context.Background()), fields...))...)
-}
-func (l *Logger) Info(msg string, fields ...dbkit.Field) {
-	l.z.Info(msg, toZap(append(dbkit.ContextFields(context.Background()), fields...))...)
-}
-func (l *Logger) Warn(msg string, fields ...dbkit.Field) {
-	l.z.Warn(msg, toZap(append(dbkit.ContextFields(context.Background()), fields...))...)
-}
-func (l *Logger) Error(msg string, fields ...dbkit.Field) {
-	l.z.Error(msg, toZap(append(dbkit.ContextFields(context.Background()), fields...))...)
-}
-
-func (l *Logger) Debugw(ctx context.Context, msg string, fields ...dbkit.Field) {
+func (l *Logger) Debug(ctx context.Context, msg string, fields ...dbkit.Field) {
 	l.z.Debug(msg, toZap(append(dbkit.ContextFields(ctx), fields...))...)
 }
-func (l *Logger) Infow(ctx context.Context, msg string, fields ...dbkit.Field) {
+func (l *Logger) Info(ctx context.Context, msg string, fields ...dbkit.Field) {
 	l.z.Info(msg, toZap(append(dbkit.ContextFields(ctx), fields...))...)
 }
-func (l *Logger) Warnw(ctx context.Context, msg string, fields ...dbkit.Field) {
+func (l *Logger) Warn(ctx context.Context, msg string, fields ...dbkit.Field) {
 	l.z.Warn(msg, toZap(append(dbkit.ContextFields(ctx), fields...))...)
 }
-func (l *Logger) Errorw(ctx context.Context, msg string, fields ...dbkit.Field) {
+func (l *Logger) Error(ctx context.Context, msg string, fields ...dbkit.Field) {
 	l.z.Error(msg, toZap(append(dbkit.ContextFields(ctx), fields...))...)
 }
 

@@ -18,6 +18,7 @@ func main() {
 
 	// 默认：标准库 slog JSON 结构化日志；也可 dbkit.NewSlogLoggerText() 或注入自定义实现
 	log := dbkit.NewSlogLoggerText()
+	demoLoggerAPI(ctx, log)
 
 	fmt.Println("=== 系统 A：MySQL + Redis ===")
 	runSystemA(ctx, log)
@@ -29,6 +30,13 @@ func main() {
 	//   import "github.com/hongjun500/dbkit/logzap"
 	//   zlog, _ := logzap.New()
 	//   defer func() { _ = zlog.Sync() }()
+}
+
+func demoLoggerAPI(ctx context.Context, log dbkit.Logger) {
+	fmt.Println("=== Logger API Demo ===")
+	log.Info(ctx, "service start", dbkit.String("service", "example"), dbkit.String("env", "dev"))
+	log.Warn(ctx, "degraded mode", dbkit.String("reason", "demo"))
+	log.Error(ctx, "sample error log", dbkit.Err("error", errors.New("just for demonstration")))
 }
 
 func runSystemA(ctx context.Context, log dbkit.Logger) {

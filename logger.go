@@ -10,15 +10,10 @@ import (
 // Logger 可插拔结构化日志接口，不绑定任何第三方日志库。
 // 消息体仅承载事件描述；上下文一律通过 Field 键值对传递。
 type Logger interface {
-	Debug(msg string, fields ...Field)
-	Info(msg string, fields ...Field)
-	Warn(msg string, fields ...Field)
-	Error(msg string, fields ...Field)
-
-	Debugw(ctx context.Context, msg string, fields ...Field)
-	Infow(ctx context.Context, msg string, fields ...Field)
-	Warnw(ctx context.Context, msg string, fields ...Field)
-	Errorw(ctx context.Context, msg string, fields ...Field)
+	Debug(ctx context.Context, msg string, fields ...Field)
+	Info(ctx context.Context, msg string, fields ...Field)
+	Warn(ctx context.Context, msg string, fields ...Field)
+	Error(ctx context.Context, msg string, fields ...Field)
 }
 
 // Field 结构化日志字段（Key-Value）。
@@ -64,29 +59,16 @@ func NewSlogLoggerFrom(l *slog.Logger) *SlogLogger {
 	return &SlogLogger{l: l}
 }
 
-func (l *SlogLogger) Debug(msg string, fields ...Field) {
-	l.log(context.Background(), slog.LevelDebug, msg, fields)
-}
-func (l *SlogLogger) Info(msg string, fields ...Field) {
-	l.log(context.Background(), slog.LevelInfo, msg, fields)
-}
-func (l *SlogLogger) Warn(msg string, fields ...Field) {
-	l.log(context.Background(), slog.LevelWarn, msg, fields)
-}
-func (l *SlogLogger) Error(msg string, fields ...Field) {
-	l.log(context.Background(), slog.LevelError, msg, fields)
-}
-
-func (l *SlogLogger) Debugw(ctx context.Context, msg string, fields ...Field) {
+func (l *SlogLogger) Debug(ctx context.Context, msg string, fields ...Field) {
 	l.log(ctx, slog.LevelDebug, msg, fields)
 }
-func (l *SlogLogger) Infow(ctx context.Context, msg string, fields ...Field) {
+func (l *SlogLogger) Info(ctx context.Context, msg string, fields ...Field) {
 	l.log(ctx, slog.LevelInfo, msg, fields)
 }
-func (l *SlogLogger) Warnw(ctx context.Context, msg string, fields ...Field) {
+func (l *SlogLogger) Warn(ctx context.Context, msg string, fields ...Field) {
 	l.log(ctx, slog.LevelWarn, msg, fields)
 }
-func (l *SlogLogger) Errorw(ctx context.Context, msg string, fields ...Field) {
+func (l *SlogLogger) Error(ctx context.Context, msg string, fields ...Field) {
 	l.log(ctx, slog.LevelError, msg, fields)
 }
 

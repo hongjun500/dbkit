@@ -38,7 +38,7 @@ func TestSlogLogger_StructuredFields(t *testing.T) {
 	h := &captureHandler{}
 	log := NewSlogLoggerFrom(slog.New(h))
 
-	log.Infow(context.Background(), "database connected",
+	log.Info(context.Background(), "database connected",
 		String("db_type", "mysql"),
 		String("component", "mysql"),
 		Int("pool_max_open", 10),
