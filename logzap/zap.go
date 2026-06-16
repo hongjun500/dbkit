@@ -3,6 +3,7 @@ package logzap
 
 import (
 	"context"
+	"time"
 
 	"github.com/hongjun500/dbkit"
 	"go.uber.org/zap"
@@ -30,10 +31,18 @@ func From(z *zap.Logger) *Logger {
 	return &Logger{z: z}
 }
 
-func (l *Logger) Debug(msg string, fields ...dbkit.Field) { l.z.Debug(msg, toZap(fields)...) }
-func (l *Logger) Info(msg string, fields ...dbkit.Field)  { l.z.Info(msg, toZap(fields)...) }
-func (l *Logger) Warn(msg string, fields ...dbkit.Field)  { l.z.Warn(msg, toZap(fields)...) }
-func (l *Logger) Error(msg string, fields ...dbkit.Field) { l.z.Error(msg, toZap(fields)...) }
+func (l *Logger) Debug(msg string, fields ...dbkit.Field) {
+	l.z.Debug(msg, toZap(append(dbkit.ContextFields(context.Background()), fields...))...)
+}
+func (l *Logger) Info(msg string, fields ...dbkit.Field) {
+	l.z.Info(msg, toZap(append(dbkit.ContextFields(context.Background()), fields...))...)
+}
+func (l *Logger) Warn(msg string, fields ...dbkit.Field) {
+	l.z.Warn(msg, toZap(append(dbkit.ContextFields(context.Background()), fields...))...)
+}
+func (l *Logger) Error(msg string, fields ...dbkit.Field) {
+	l.z.Error(msg, toZap(append(dbkit.ContextFields(context.Background()), fields...))...)
+}
 
 func (l *Logger) Debugw(ctx context.Context, msg string, fields ...dbkit.Field) {
 	l.z.Debug(msg, toZap(append(dbkit.ContextFields(ctx), fields...))...)
@@ -63,6 +72,8 @@ func toZap(fields []dbkit.Field) []zap.Field {
 			out = append(out, zap.Int64(f.Key, v))
 		case bool:
 			out = append(out, zap.Bool(f.Key, v))
+		case time.Duration:
+			out = append(out, zap.Duration(f.Key, v))
 		case error:
 			out = append(out, zap.NamedError(f.Key, v))
 		default:

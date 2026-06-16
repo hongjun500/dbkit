@@ -20,20 +20,22 @@ type PoolConfig struct {
 
 // MySQLConfig MySQL / GORM 配置。
 type MySQLConfig struct {
-	Enabled  bool          `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
-	DSN      string        `mapstructure:"dsn" json:"dsn" yaml:"dsn"`
-	Pool     PoolConfig    `mapstructure:"pool" json:"pool" yaml:"pool"`
-	Dial     time.Duration `mapstructure:"dial_timeout" json:"dial_timeout" yaml:"dial_timeout"`
-	LogLevel string        `mapstructure:"log_level" json:"log_level" yaml:"log_level"`
+	Enabled bool          `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	DSN     string        `mapstructure:"dsn" json:"dsn" yaml:"dsn"`
+	Pool    PoolConfig    `mapstructure:"pool" json:"pool" yaml:"pool"`
+	Dial    time.Duration `mapstructure:"dial_timeout" json:"dial_timeout" yaml:"dial_timeout"`
+	// LogLevel 仅支持: silent/error/warn/info（兼容 debug -> info）。
+	LogLevel string `mapstructure:"log_level" json:"log_level" yaml:"log_level"`
 }
 
 // PostgresConfig PostgreSQL / GORM 配置。
 type PostgresConfig struct {
-	Enabled  bool          `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
-	DSN      string        `mapstructure:"dsn" json:"dsn" yaml:"dsn"`
-	Pool     PoolConfig    `mapstructure:"pool" json:"pool" yaml:"pool"`
-	Dial     time.Duration `mapstructure:"dial_timeout" json:"dial_timeout" yaml:"dial_timeout"`
-	LogLevel string        `mapstructure:"log_level" json:"log_level" yaml:"log_level"`
+	Enabled bool          `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	DSN     string        `mapstructure:"dsn" json:"dsn" yaml:"dsn"`
+	Pool    PoolConfig    `mapstructure:"pool" json:"pool" yaml:"pool"`
+	Dial    time.Duration `mapstructure:"dial_timeout" json:"dial_timeout" yaml:"dial_timeout"`
+	// LogLevel 仅支持: silent/error/warn/info（兼容 debug -> info）。
+	LogLevel string `mapstructure:"log_level" json:"log_level" yaml:"log_level"`
 }
 
 // RedisConfig go-redis 客户端配置。
@@ -61,7 +63,6 @@ type ElasticsearchConfig struct {
 	Dial      time.Duration `mapstructure:"dial_timeout" json:"dial_timeout" yaml:"dial_timeout"`
 }
 
-
 func (p PoolConfig) withDefaults() PoolConfig {
 	if p.MaxOpenConns <= 0 {
 		p.MaxOpenConns = 25
@@ -75,9 +76,27 @@ func (p PoolConfig) withDefaults() PoolConfig {
 	if p.ConnMaxIdleTime <= 0 {
 		p.ConnMaxIdleTime = 10 * time.Minute
 	}
+	if p.MaxIdleConns > p.MaxOpenConns {
+		p.MaxIdleConns = p.MaxOpenConns
+	}
 	return p
 }
 
+func (c MySQLConfig) withDefaults() MySQLConfig {
+	if c.Dial <= 0 {
+		c.Dial = 5 * time.Second
+	}
+	c.Pool = c.Pool.withDefaults()
+	return c
+}
+
+func (c PostgresConfig) withDefaults() PostgresConfig {
+	if c.Dial <= 0 {
+		c.Dial = 5 * time.Second
+	}
+	c.Pool = c.Pool.withDefaults()
+	return c
+}
 
 func (c RedisConfig) withDefaults() RedisConfig {
 	if c.PoolSize <= 0 {

@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
+	stdmysql "github.com/go-sql-driver/mysql"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -13,24 +15,34 @@ import (
 
 // openMySQL 打开 MySQL GORM 连接并配置连接池。
 func openMySQL(ctx context.Context, cfg MySQLConfig, log Logger) (*gorm.DB, error) {
+	cfg = cfg.withDefaults()
 	if cfg.DSN == "" {
 		return nil, fmt.Errorf("dbkit mysql: dsn is required when enabled")
 	}
 
-	pool := cfg.Pool.withDefaults()
+	pool := cfg.Pool
 	logConnectStart(ctx, log, "mysql",
 		String(logKeyDSN, redactDSN(cfg.DSN)),
 		dialField(cfg.Dial),
 	)
 
-	gormCfg := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
-	}
-	if cfg.LogLevel != "" && cfg.LogLevel != "silent" {
-		gormCfg.Logger = logger.Default.LogMode(gormLogMode(cfg.LogLevel))
+	logMode, err := parseGORMLogMode(cfg.LogLevel)
+	if err != nil {
+		logConnectFail(ctx, log, "mysql", "parse_log_level", err, String("log_level", cfg.LogLevel))
+		return nil, err
 	}
 
-	db, err := gorm.Open(mysql.Open(cfg.DSN), gormCfg)
+	dsnForOpen, err := ensureMySQLDialTimeout(cfg.DSN, cfg.Dial)
+	if err != nil {
+		logConnectFail(ctx, log, "mysql", "normalize_dsn", err, String(logKeyDSN, redactDSN(cfg.DSN)))
+		return nil, err
+	}
+
+	gormCfg := &gorm.Config{
+		Logger: logger.Default.LogMode(logMode),
+	}
+
+	db, err := gorm.Open(mysql.Open(dsnForOpen), gormCfg)
 	if err != nil {
 		logConnectFail(ctx, log, "mysql", "open", err, String(logKeyDSN, redactDSN(cfg.DSN)))
 		return nil, fmt.Errorf("dbkit mysql: open: %w", err)
@@ -90,19 +102,40 @@ func applyPool(sqlDB *sql.DB, pool PoolConfig) {
 	sqlDB.SetConnMaxIdleTime(pool.ConnMaxIdleTime)
 }
 
-func gormLogMode(level string) logger.LogLevel {
-	switch level {
+func parseGORMLogMode(level string) (logger.LogLevel, error) {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "", "silent":
+		return logger.Silent, nil
 	case "error":
-		return logger.Error
+		return logger.Error, nil
 	case "warn":
-		return logger.Warn
-	case "info":
-		return logger.Info
-	case "debug":
-		return logger.Info
+		return logger.Warn, nil
+	case "info", "debug":
+		return logger.Info, nil
 	default:
-		return logger.Silent
+		return logger.Silent, fmt.Errorf("dbkit: invalid gorm log level %q (allowed: silent,error,warn,info)", level)
 	}
+}
+
+func ensureMySQLDialTimeout(dsn string, dial time.Duration) (string, error) {
+	if dial <= 0 {
+		return dsn, nil
+	}
+
+	cfg, err := stdmysql.ParseDSN(dsn)
+	if err != nil {
+		return "", fmt.Errorf("dbkit mysql: parse dsn: %w", err)
+	}
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = dial
+	}
+	if cfg.ReadTimeout <= 0 {
+		cfg.ReadTimeout = dial
+	}
+	if cfg.WriteTimeout <= 0 {
+		cfg.WriteTimeout = dial
+	}
+	return cfg.FormatDSN(), nil
 }
 
 // MySQLHealthCheck 对外的 Ping 辅助（带默认超时）。

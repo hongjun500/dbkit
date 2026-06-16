@@ -11,21 +11,25 @@ import (
 
 // openPostgres 打开 PostgreSQL GORM 连接并配置连接池。
 func openPostgres(ctx context.Context, cfg PostgresConfig, log Logger) (*gorm.DB, error) {
+	cfg = cfg.withDefaults()
 	if cfg.DSN == "" {
 		return nil, fmt.Errorf("dbkit postgres: dsn is required when enabled")
 	}
 
-	pool := cfg.Pool.withDefaults()
+	pool := cfg.Pool
 	logConnectStart(ctx, log, "postgres",
 		String(logKeyDSN, redactDSN(cfg.DSN)),
 		dialField(cfg.Dial),
 	)
 
-	gormCfg := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+	logMode, err := parseGORMLogMode(cfg.LogLevel)
+	if err != nil {
+		logConnectFail(ctx, log, "postgres", "parse_log_level", err, String("log_level", cfg.LogLevel))
+		return nil, err
 	}
-	if cfg.LogLevel != "" && cfg.LogLevel != "silent" {
-		gormCfg.Logger = logger.Default.LogMode(gormLogMode(cfg.LogLevel))
+
+	gormCfg := &gorm.Config{
+		Logger: logger.Default.LogMode(logMode),
 	}
 	db, err := gorm.Open(postgres.Open(cfg.DSN), gormCfg)
 	if err != nil {

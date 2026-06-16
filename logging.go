@@ -3,6 +3,9 @@ package dbkit
 import (
 	"context"
 	"database/sql"
+	"net/url"
+	"regexp"
+	"strings"
 	"time"
 )
 
@@ -75,12 +78,51 @@ func redactDSN(dsn string) string {
 	if dsn == "" {
 		return ""
 	}
-	// 仅用于日志：截断过长 DSN，避免刷屏；密码仍可能存在于 DSN，生产环境建议业务方自定义 Logger 脱敏
+	redacted := redactURLUserPassword(dsn)
+	redacted = redactMySQLStyleUserPassword(redacted)
+	redacted = redactPasswordKV(redacted)
+
+	// 仅用于日志：截断过长 DSN，避免刷屏。
 	const maxLen = 128
-	if len(dsn) <= maxLen {
-		return dsn
+	if len(redacted) <= maxLen {
+		return redacted
 	}
-	return dsn[:maxLen] + "..."
+	return redacted[:maxLen] + "..."
+}
+
+var passwordKVRe = regexp.MustCompile(`(?i)\b(password|passwd|pwd)\s*=\s*([^&\s;]+)`)
+
+func redactPasswordKV(s string) string {
+	return passwordKVRe.ReplaceAllString(s, "${1}=***")
+}
+
+func redactURLUserPassword(s string) string {
+	u, err := url.Parse(s)
+	if err != nil || u.User == nil {
+		return s
+	}
+	username := u.User.Username()
+	if username == "" {
+		return s
+	}
+	u.User = url.UserPassword(username, "***")
+	return u.String()
+}
+
+func redactMySQLStyleUserPassword(s string) string {
+	if strings.Contains(s, "://") {
+		return s
+	}
+	at := strings.Index(s, "@")
+	if at <= 0 {
+		return s
+	}
+	cred := s[:at]
+	colon := strings.Index(cred, ":")
+	if colon <= 0 {
+		return s
+	}
+	return cred[:colon+1] + "***" + s[at:]
 }
 
 func dialField(d time.Duration) Field {
