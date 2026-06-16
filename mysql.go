@@ -10,7 +10,7 @@ import (
 	stdmysql "github.com/go-sql-driver/mysql"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 // openMySQL 打开 MySQL GORM 连接并配置连接池。
@@ -39,7 +39,7 @@ func openMySQL(ctx context.Context, cfg MySQLConfig, log Logger) (*gorm.DB, erro
 	}
 
 	gormCfg := &gorm.Config{
-		Logger: logger.Default.LogMode(logMode),
+		Logger: newGORMLogger(log, "mysql", logMode),
 	}
 
 	db, err := gorm.Open(mysql.Open(dsnForOpen), gormCfg)
@@ -102,18 +102,18 @@ func applyPool(sqlDB *sql.DB, pool PoolConfig) {
 	sqlDB.SetConnMaxIdleTime(pool.ConnMaxIdleTime)
 }
 
-func parseGORMLogMode(level string) (logger.LogLevel, error) {
+func parseGORMLogMode(level string) (gormlogger.LogLevel, error) {
 	switch strings.ToLower(strings.TrimSpace(level)) {
 	case "", "silent":
-		return logger.Silent, nil
+		return gormlogger.Silent, nil
 	case "error":
-		return logger.Error, nil
+		return gormlogger.Error, nil
 	case "warn":
-		return logger.Warn, nil
+		return gormlogger.Warn, nil
 	case "info", "debug":
-		return logger.Info, nil
+		return gormlogger.Info, nil
 	default:
-		return logger.Silent, fmt.Errorf("dbkit: invalid gorm log level %q (allowed: silent,error,warn,info)", level)
+		return gormlogger.Silent, fmt.Errorf("dbkit: invalid gorm log level %q (allowed: silent,error,warn,info)", level)
 	}
 }
 

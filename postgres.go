@@ -6,10 +6,9 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
-// openPostgres 打开 PostgreSQL GORM 连接并配置连接池。
+// openPostgres 打开 PostgresSQL GORM 连接并配置连接池。
 func openPostgres(ctx context.Context, cfg PostgresConfig, log Logger) (*gorm.DB, error) {
 	cfg = cfg.withDefaults()
 	if cfg.DSN == "" {
@@ -29,7 +28,7 @@ func openPostgres(ctx context.Context, cfg PostgresConfig, log Logger) (*gorm.DB
 	}
 
 	gormCfg := &gorm.Config{
-		Logger: logger.Default.LogMode(logMode),
+		Logger: newGORMLogger(log, "postgres", logMode),
 	}
 	db, err := gorm.Open(postgres.Open(cfg.DSN), gormCfg)
 	if err != nil {

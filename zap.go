@@ -1,5 +1,5 @@
-// Package logzap 提供基于 go.uber.org/zap 的 dbkit.Logger 适配器（可选依赖）。
-package logzap
+// Package dbkit 提供基于 go.uber.org/zap 的 dbkit.Logger 适配器（可选依赖）。
+package dbkit
 
 import (
 	"context"
