@@ -2,8 +2,13 @@ package dbkit
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"log/slog"
 	"os"
+	"strings"
+	"sync"
 	"time"
 )
 
@@ -123,3 +128,104 @@ func ContextFields(ctx context.Context) []Field {
 func contextFields(ctx context.Context) []Field { return ContextFields(ctx) }
 
 var _ Logger = (*SlogLogger)(nil)
+
+// SQLJSONHandler 输出 JSON 日志，并将 SQL 原文附加在 JSON 记录后。
+type SQLJSONHandler struct {
+	out    io.Writer
+	level  slog.Leveler
+	mu     *sync.Mutex
+	attrs  []slog.Attr
+	groups []string
+}
+
+func newSQLJSONHandler(out io.Writer, level slog.Leveler) *SQLJSONHandler {
+	return &SQLJSONHandler{
+		out:   out,
+		level: level,
+		mu:    &sync.Mutex{},
+	}
+}
+
+func (h *SQLJSONHandler) Enabled(_ context.Context, level slog.Level) bool {
+	return level >= h.level.Level()
+}
+
+func (h *SQLJSONHandler) Handle(_ context.Context, r slog.Record) error {
+	data := make(map[string]any)
+
+	data["time"] = r.Time.Format(time.RFC3339Nano)
+	data["level"] = r.Level.String()
+	data["msg"] = r.Message
+
+	var sql string
+	var addAttr func(a slog.Attr)
+	addAttr = func(a slog.Attr) {
+		a.Value = a.Value.Resolve()
+		if a.Equal(slog.Attr{}) {
+			return
+		}
+		if a.Value.Kind() == slog.KindGroup {
+			for _, child := range a.Value.Group() {
+				addAttr(child)
+			}
+			return
+		}
+
+		if a.Key == "sql" {
+			sql = a.Value.String()
+			return
+		}
+
+		data[a.Key] = a.Value.Any()
+	}
+
+	for _, a := range h.attrs {
+		addAttr(a)
+	}
+
+	r.Attrs(func(a slog.Attr) bool {
+		addAttr(a)
+		return true
+	})
+
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	var output strings.Builder
+	output.Write(encoded)
+	output.WriteByte('\n')
+
+	if sql != "" {
+		output.WriteString("SQL:\n")
+		output.WriteString(sql)
+		output.WriteString("\n")
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	_, err = io.WriteString(h.out, output.String())
+	return err
+}
+
+func (h *SQLJSONHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	clone := *h
+	clone.attrs = append(append([]slog.Attr(nil), h.attrs...), attrs...)
+	return &clone
+}
+
+func (h *SQLJSONHandler) WithGroup(name string) slog.Handler {
+	if name == "" {
+		return h
+	}
+
+	clone := *h
+	clone.groups = append(append([]string(nil), h.groups...), name)
+	return &clone
+}
+
+var _ slog.Handler = (*SQLJSONHandler)(nil)
+
+var _ = fmt.Sprint

@@ -60,7 +60,6 @@ func NewRegistry(cfg Config, opts ...RegistryOption) *Registry {
 	}
 	return r
 }
-
 func (r *Registry) ensureOpen() error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
