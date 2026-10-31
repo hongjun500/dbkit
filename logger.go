@@ -44,9 +44,7 @@ type SlogLogger struct {
 
 // NewSlogLogger 使用 JSON 输出到 stderr 创建 SlogLogger（适合生产环境）。
 func NewSlogLogger() *SlogLogger {
-	return NewSlogLoggerFrom(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	})))
+	return NewSlogLoggerFrom(slog.New(newSQLJSONHandler(os.Stderr, slog.LevelInfo)))
 }
 
 // NewSlogLoggerText 使用文本格式输出到 stderr（适合本地开发）。
@@ -59,7 +57,7 @@ func NewSlogLoggerText() *SlogLogger {
 // NewSlogLoggerFrom 包装已有 *slog.Logger。
 func NewSlogLoggerFrom(l *slog.Logger) *SlogLogger {
 	if l == nil {
-		l = slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+		l = slog.New(newSQLJSONHandler(os.Stderr, slog.LevelInfo))
 	}
 	return &SlogLogger{l: l}
 }
@@ -67,12 +65,15 @@ func NewSlogLoggerFrom(l *slog.Logger) *SlogLogger {
 func (l *SlogLogger) Debug(ctx context.Context, msg string, fields ...Field) {
 	l.log(ctx, slog.LevelDebug, msg, fields)
 }
+
 func (l *SlogLogger) Info(ctx context.Context, msg string, fields ...Field) {
 	l.log(ctx, slog.LevelInfo, msg, fields)
 }
+
 func (l *SlogLogger) Warn(ctx context.Context, msg string, fields ...Field) {
 	l.log(ctx, slog.LevelWarn, msg, fields)
 }
+
 func (l *SlogLogger) Error(ctx context.Context, msg string, fields ...Field) {
 	l.log(ctx, slog.LevelError, msg, fields)
 }
