@@ -15,36 +15,33 @@ type RedisClient struct {
 
 func openRedis(ctx context.Context, cfg RedisConfig, log Logger) (*RedisClient, error) {
 	cfg = cfg.withDefaults()
-	if cfg.Addr == "" {
+	/* if cfg.Addr == "" {
 		return nil, fmt.Errorf("dbkit redis: addr is required when enabled")
+	} */
+	opt, err := cfg.buildOptions()
+	if err != nil {
+		return nil, fmt.Errorf("dbkit redis: build options: %w", err)
 	}
+	useTLS := opt.TLSConfig != nil
 
 	logConnectStart(ctx, log, "redis",
-		String(logKeyAddr, cfg.Addr),
-		Int("db", cfg.DB),
-		Int(logKeyPoolSize, cfg.PoolSize),
-		Int(logKeyMinIdle, cfg.MinIdleConns),
-		dialField(cfg.Dial),
+		String(logKeyAddr, opt.Addr),
+		Int("db", opt.DB),
+		Int(logKeyPoolSize, opt.PoolSize),
+		Int(logKeyMinIdle, opt.MinIdleConns),
+		Bool("tls", useTLS),
+		dialField(opt.DialTimeout),
 	)
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr:         cfg.Addr,
-		Username:     cfg.Username,
-		Password:     cfg.Password,
-		DB:           cfg.DB,
-		PoolSize:     cfg.PoolSize,
-		MinIdleConns: cfg.MinIdleConns,
-		DialTimeout:  cfg.Dial,
-		ReadTimeout:  cfg.Read,
-		WriteTimeout: cfg.Write,
-	})
+	rdb := redis.NewClient(opt)
 
-	pingCtx, cancel := context.WithTimeout(ctx, cfg.Dial)
+	pingCtx, cancel := context.WithTimeout(ctx, opt.DialTimeout+opt.ReadTimeout)
 	defer cancel()
 	if err := rdb.Ping(pingCtx).Err(); err != nil {
 		_ = rdb.Close()
 		logConnectFail(ctx, log, "redis", "ping", err,
-			String(logKeyAddr, cfg.Addr),
+			String(logKeyAddr, opt.Addr),
+			Bool("tls", useTLS),
 			dialField(cfg.Dial),
 		)
 		return nil, fmt.Errorf("dbkit redis: ping: %w", err)
@@ -52,10 +49,11 @@ func openRedis(ctx context.Context, cfg RedisConfig, log Logger) (*RedisClient, 
 
 	st := rdb.PoolStats()
 	logConnectOK(ctx, log, "redis",
-		String(logKeyAddr, cfg.Addr),
-		Int("db", cfg.DB),
-		Int(logKeyPoolSize, cfg.PoolSize),
-		Int(logKeyMinIdle, cfg.MinIdleConns),
+		String(logKeyAddr, opt.Addr),
+		Int("db", opt.DB),
+		Int(logKeyPoolSize, opt.PoolSize),
+		Int(logKeyMinIdle, opt.MinIdleConns),
+		Bool("tls", useTLS),
 		Int("pool_hits", int(st.Hits)),
 		Int("pool_misses", int(st.Misses)),
 		Int("pool_timeouts", int(st.Timeouts)),
@@ -63,6 +61,67 @@ func openRedis(ctx context.Context, cfg RedisConfig, log Logger) (*RedisClient, 
 		Int("pool_idle_conns", int(st.IdleConns)),
 	)
 	return &RedisClient{rdb: rdb}, nil
+}
+
+// buildOptions 以 URL 为基础，叠加显式字段，再补齐 dbkit 默认值。
+func (c RedisConfig) buildOptions() (*redis.Options, error) {
+	opt := &redis.Options{}
+	if c.URL != "" {
+		parsed, err := redis.ParseURL(c.URL)
+		if err != nil {
+			return nil, fmt.Errorf("parse url: %w", sanitizeURLErr(err))
+		}
+		opt = parsed
+	}
+
+	// 显式字段覆盖 URL
+	if c.Addr != "" {
+		opt.Addr = c.Addr
+	}
+	if c.Username != "" {
+		opt.Username = c.Username
+	}
+	if c.Password != "" {
+		opt.Password = c.Password
+	}
+	if c.DB != 0 {
+		opt.DB = c.DB
+	}
+	if c.PoolSize > 0 {
+		opt.PoolSize = c.PoolSize
+	}
+	if c.MinIdleConns > 0 {
+		opt.MinIdleConns = c.MinIdleConns
+	}
+	if c.Dial > 0 {
+		opt.DialTimeout = c.Dial
+	}
+	if c.Read > 0 {
+		opt.ReadTimeout = c.Read
+	}
+	if c.Write > 0 {
+		opt.WriteTimeout = c.Write
+	}
+
+	// 仍为零值的，补 dbkit 默认值
+	if opt.Addr == "" {
+		return nil, fmt.Errorf("addr or url is required")
+	}
+	
+	// TLS：显式启用，或 URL 为 rediss:// 时 opt.TLSConfig 已非 nil
+	if c.TLS.Enabled || opt.TLSConfig != nil {
+		t := c.TLS
+		t.Enabled = true
+		if t.ServerName == "" && opt.TLSConfig != nil {
+			t.ServerName = opt.TLSConfig.ServerName // 沿用 URL 解析出的 host
+		}
+		tc, err := t.build(hostOf(opt.Addr))
+		if err != nil {
+			return nil, err
+		}
+		opt.TLSConfig = tc
+	}
+	return opt, nil
 }
 
 func (c *RedisClient) Raw() *redis.Client { return c.rdb }

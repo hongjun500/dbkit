@@ -41,6 +41,7 @@ type PostgresConfig struct {
 // RedisConfig go-redis 客户端配置。
 type RedisConfig struct {
 	Enabled      bool          `mapstructure:"enabled" json:"enabled" yaml:"enabled"`
+	URL          string        `mapstructure:"url" json:"url" yaml:"url"`
 	Addr         string        `mapstructure:"addr" json:"addr" yaml:"addr"`
 	Username     string        `mapstructure:"username" json:"username" yaml:"username"`
 	Password     string        `mapstructure:"password" json:"password" yaml:"password"`
@@ -50,6 +51,7 @@ type RedisConfig struct {
 	Dial         time.Duration `mapstructure:"dial_timeout" json:"dial_timeout" yaml:"dial_timeout"`
 	Read         time.Duration `mapstructure:"read_timeout" json:"read_timeout" yaml:"read_timeout"`
 	Write        time.Duration `mapstructure:"write_timeout" json:"write_timeout" yaml:"write_timeout"`
+	TLS          TLSConfig     `mapstructure:"tls" json:"tls" yaml:"tls"`
 }
 
 // ElasticsearchConfig 官方 ES 客户端配置。

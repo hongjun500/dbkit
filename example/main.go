@@ -49,10 +49,12 @@ func runSystemA(ctx context.Context, log dbkit.Logger) {
 		},
 		Redis: dbkit.RedisConfig{
 			Enabled:  true,
-			Addr:     "127.0.0.1:6379",
+			URL: "rediss://default:xx@ex:16379",
+			// Addr:     "127.0.0.1:6379",
 			Password: "",
 			DB:       0,
 			Dial:     2 * time.Second,
+			
 		},
 		// 系统 A 未启用 PG / ES
 	}, dbkit.WithLogger(log))
